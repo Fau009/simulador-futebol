@@ -47,10 +47,19 @@ select { font: inherit; color: var(--texto); background: var(--sup); border: 1px
 .btn-sim small { display: block; opacity: .9; font-size: 12px; }
 .btn-sim[aria-pressed="true"] { background: var(--sup); color: var(--sim); }
 
-.barra-sim { max-width: 1200px; margin: 12px auto 0; padding: 10px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--sim-claro); border: 1px dashed var(--sim); border-radius: 12px; }
+.barra-sim { max-width: 1200px; margin: 12px auto 0; padding: 8px 12px; row-gap: 8px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--sim-claro); border: 1px dashed var(--sim); border-radius: 12px; }
 .barra-sim .acoes { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
 .btn.destaque-btn { border-color: var(--sim); color: var(--sim); font-weight: 600; }
 .perfis-bloco { width: 100%; }
+.ajuda-perfil { font: inherit; font-size: 12.5px; background: none; border: 0; color: var(--sim); cursor: pointer; text-decoration: underline; padding: 4px 6px; }
+.painel-perfis { width: 100%; }
+.comparativo { margin-top: 8px; background: var(--sup); border: 1px solid var(--borda); border-radius: 10px; padding: 8px 12px; font-size: 12.5px; overflow-x: auto; }
+.comparativo table { width: 100%; border-collapse: collapse; }
+.comparativo th { text-align: left; font-weight: 600; color: var(--sutil); font-size: 11.5px; padding: 3px 6px; }
+.comparativo td { padding: 4px 6px; border-top: 1px solid var(--borda); white-space: nowrap; }
+.comparativo tr.ativo td { font-weight: 700; color: var(--sim); }
+.comparativo tr.real td { color: var(--sutil); font-style: italic; }
+.comparativo p { margin: 6px 0 0; }
 .perfis { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .perfis-rot { font-size: 13px; font-weight: 600; color: var(--sim); margin-right: 4px; }
 .perfis button { font: inherit; font-size: 13px; border: 1px solid var(--sim); background: var(--sup); color: var(--sim); border-radius: 18px; padding: 5px 12px; cursor: pointer; }
@@ -90,7 +99,7 @@ em.desce { color: var(--d); font-style: normal; font-size: 10.5px; }
 .sinais li small { display: block; color: var(--sutil); font-size: 11px; }
 .sinais em { font-style: normal; white-space: nowrap; font-weight: 700; color: var(--sutil); }
 #modalCorpo h3 { font-size: 14px; margin: 16px 0 6px; }
-.como { width: 100%; font-size: 13px; }
+.como { width: 100%; font-size: 13px; margin-top: 8px; }
 .como summary { cursor: pointer; color: var(--sim); font-weight: 600; }
 .como ul { margin: 6px 0 0; padding-left: 20px; }
 .como li { margin: 3px 0; }
@@ -283,5 +292,8 @@ table.classif { width: 100%; border-collapse: collapse; font-variant-numeric: ta
   .jogos-layout.com-mini { grid-template-columns: 1fr; }
   .perfil-num, .zebra-box { grid-template-columns: 1fr; }
   .perfis-jogo { grid-template-columns: 1fr; }
+  .perfis-rot { width: 100%; }
+  .perfis button { font-size: 12.5px; padding: 4px 9px; }
+  .ajuda-perfil { padding: 2px 0; }
   .mini { display: none; }
 }

@@ -106,7 +106,15 @@
     $('#btnChances').classList.toggle('oculto', S.comp.tipo !== 'liga' || S.dados?.tabela.length !== 1);
   }
 
+  function renderComparativo() {
+    const linhas = Object.entries(PERFIS).map(([k, p]) => `<tr class="${k === S.perfil ? 'ativo' : ''}"><td>${p.ico} ${p.nome}</td><td>${String(p.numeros.acerto).replace('.', ',')}%</td><td>${p.numeros.V}% · ${String(p.numeros.E).replace('.', ',')}% · ${p.numeros.D}%</td><td>${String(p.numeros.gols).replace('.', ',')}</td></tr>`).join('');
+    $('#comparativoPerfis').innerHTML = `<table><tr><th>Perfil</th><th>Acerto</th><th>Prevê mandante · empate · visitante</th><th>Gols/jogo</th></tr>${linhas}
+      <tr class="real"><td>Vida real</td><td>—</td><td>${REAL.V}% · ${REAL.E}% · ${REAL.D}%</td><td>${String(REAL.gols).replace('.', ',')}</td></tr></table>
+      <p class="sutil">As chances de cada jogo são iguais nos 3 perfis; muda só a regra que escolhe o placar. Trocar o perfil refaz na hora os placares que vieram do algoritmo. Os que você digitou não mudam.</p>`;
+  }
+
   function renderPerfil() {
+    renderComparativo();
     const p = PERFIS[S.perfil], n = p.numeros;
     document.querySelectorAll('#perfis button').forEach(b => { const on = b.dataset.perfil === S.perfil; b.classList.toggle('ativo', on); b.setAttribute('aria-checked', on); });
     $('#btnPrever').textContent = `🧮 Prever (${p.nome})`;
@@ -129,12 +137,17 @@
     salvarSim(); return true;
   }
 
-  const pendente = j => j.st !== 'fim' && j.st !== 'cancelado' && !j.indef && !S.sim[j.id];
-  // preenche os jogos sem placar; o 4º campo guarda a origem: 'r' sorteado, 'a' algoritmo (digitado não tem)
-  function preencher(modo) {
-    const m = S.modelo; let n = 0;
+  const aberto = j => j.st !== 'fim' && j.st !== 'cancelado' && !j.indef;
+  const digitado = s => s && !s[3]; // 4º campo = origem: 'r' sorteado, 'a' algoritmo; placar digitado não tem
+  // preenche os jogos por disputar. Substitui o que o algoritmo ou o sorteio fizeram antes; mantém o que foi digitado.
+  // somente: 'a' = refaz só os jogos que vieram do algoritmo (usado ao trocar de perfil)
+  function preencher(modo, somente = null) {
+    const m = S.modelo; let n = 0, mantidos = 0;
     for (const j of S.dados.jogos) {
-      if (!pendente(j)) continue;
+      if (!aberto(j)) continue;
+      const s = S.sim[j.id];
+      if (digitado(s)) { mantidos++; continue; }
+      if (somente && s?.[3] !== somente) continue;
       S.sim[j.id] = modo === 'a' ? [...Calculo.prever(j, m, S.perfil).placar, null, 'a', S.perfil] : [...Calculo.sortearPlacar(j, m), null, 'r']; n++;
     }
     if (S.comp.tipo === 'copa') { // desempata confrontos sorteados nos pênaltis
@@ -147,7 +160,9 @@
       }
     }
     salvarSim(); renderTudo();
-    aviso(!n ? 'Não há jogos sem placar para preencher' : modo === 'a' ? `${n} jogo(s) previstos pelo algoritmo · perfil ${PERFIS[S.perfil].nome}` : `${n} jogo(s) sorteados com as chances do algoritmo`);
+    const extra = mantidos ? ` · ${mantidos} placar(es) digitado(s) por você mantido(s)` : '';
+    if (somente) { if (n) aviso(`${n} jogo(s) refeitos com o perfil ${PERFIS[S.perfil].nome}${extra}`); return; }
+    aviso(!n ? `Nenhum jogo para preencher${extra}` : modo === 'a' ? `${n} jogo(s) previstos · perfil ${PERFIS[S.perfil].nome}${extra}` : `${n} jogo(s) sorteados com as chances do algoritmo${extra}`);
   }
 
   function calcularChances() {
@@ -525,7 +540,15 @@
     renderSimBarra(); renderTabela(); renderJogos();
     if (S.simAtivo) { S.filtro = 'proximos'; document.querySelectorAll('#filtroJogos .chip').forEach(c => c.classList.toggle('ativo', c.dataset.f === 'proximos')); mostrarAba(S.comp.tipo === 'copa' ? 'tabela' : 'jogos'); }
   };
-  $('#perfis').onclick = e => { const k = e.target.closest('[data-perfil]')?.dataset.perfil; if (k) { S.perfil = k; A.gravar('perfil', k); renderPerfil(); } };
+  $('#perfis').onclick = e => {
+    const k = e.target.closest('[data-perfil]')?.dataset.perfil; if (!k || k === S.perfil) return;
+    S.perfil = k; A.gravar('perfil', k); renderPerfil();
+    if (S.dados && Object.values(S.sim).some(s => s[3] === 'a')) preencher('a', 'a'); // placares do algoritmo passam para o novo perfil
+  };
+  $('#btnAjudaPerfil').onclick = () => {
+    const abrir = $('#painelPerfis').classList.contains('oculto');
+    $('#painelPerfis').classList.toggle('oculto', !abrir); $('#btnAjudaPerfil').setAttribute('aria-expanded', abrir); A.gravar('ajudaPerfil', abrir);
+  };
   $('#btnSortear').onclick = () => preencher('r');
   $('#btnPrever').onclick = () => preencher('a');
   $('#btnChances').onclick = calcularChances;
@@ -577,6 +600,7 @@
   // ---------- início ----------
   aplicarTema(A.ler('tema') || 'auto');
   S.perfil = PERFIS[A.ler('perfil')] ? A.ler('perfil') : 'moderado'; renderPerfil();
+  if (A.ler('ajudaPerfil')) { $('#painelPerfis').classList.remove('oculto'); $('#btnAjudaPerfil').setAttribute('aria-expanded', 'true'); }
   montarPaises();
   abrir(location.hash.slice(1) || A.ler('ultimo') || 'bra.1');
 })();

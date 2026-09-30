@@ -48,11 +48,14 @@
         <button data-perfil="conservador" role="radio">🛡️ Conservador</button>
         <button data-perfil="moderado" role="radio">⚖️ Moderado</button>
         <button data-perfil="arriscado" role="radio">🔥 Arriscado</button>
+        <button class="ajuda-perfil" id="btnAjudaPerfil" aria-expanded="false" aria-controls="painelPerfis">ⓘ Diferença entre os perfis</button>
       </div>
-      <div class="perfil-info" id="perfilInfo"></div>
     </div>
+    <div class="painel-perfis oculto" id="painelPerfis">
+      <div class="perfil-info" id="perfilInfo"></div>
+      <div class="comparativo" id="comparativoPerfis"></div>
     <details class="como">
-      <summary>ℹ️ Como o algoritmo funciona</summary>
+      <summary>Como o algoritmo funciona</summary>
       <p>Cada jogo passa por <b>duas visões</b>, que depois são combinadas:</p>
       <ul>
         <li><b>Gols esperados (Dixon-Coles):</b>
@@ -71,6 +74,7 @@
       <p><b>Como foi calibrado:</b> todos os números foram escolhidos por teste retroativo com 8.695 jogos de 2023 a 2025 em 8 ligas, prevendo cada jogo só com os anteriores. O resultado de cada perfil aparece acima, ao escolhê-lo.</p>
       <p><b>Honestidade:</b> no teste, o Elo foi o que mais melhorou a previsão. Os sinais extras de zebra quase não mudaram nada: a própria chance do azarão já explica as zebras.</p>
     </details>
+    </div>
   </section>
 
   <nav class="abas" id="abas">
