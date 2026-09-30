@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulador de Futebol</title>
+  <meta name="description" content="Tabelas, jogos, artilharia e destaques dos campeonatos do Brasil, Inglaterra, Espanha, Alemanha, Itália e Portugal, com simulador de resultados e chances.">
+  <link rel="stylesheet" href="css/estilo.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2316a34a'/><circle cx='16' cy='16' r='9' fill='white'/><path d='M16 10l4 3-1.5 5h-5L12 13z' fill='%2316a34a'/></svg>">
+  <script>try { const t = localStorage.getItem('sf:v1:tema'); if (t === '"claro"' || t === '"escuro"') document.documentElement.dataset.theme = t === '"escuro"' ? 'dark' : 'light'; } catch { }</script>
+</head>
+<body>
+  <header class="topo">
+    <div class="marca"><span class="bola-logo">⚽</span><strong>Simulador de Futebol</strong></div>
+    <div class="escolha">
+      <select id="selPais" aria-label="País"></select>
+      <select id="selComp" aria-label="Campeonato"></select>
+    </div>
+    <div class="atualizacao">
+      <span id="txtAtualizacao">Carregando…</span>
+      <button id="btnRecarregar" class="btn">↻ <span class="rotulo">Recarregar</span></button>
+      <button id="btnTema" class="btn icone fantasma" title="Tema" aria-label="Alternar tema">◐</button>
+    </div>
+  </header>
+
+  <section class="faixa-comp">
+    <div class="titulo-comp">
+      <h1 id="nomeComp">—</h1>
+      <span id="infoComp" class="sutil"></span>
+    </div>
+    <button id="btnSim" class="btn-sim" aria-pressed="false">
+      <span class="ico">🎮</span><span><b>Modo simulador</b><small id="simResumo">Simule os próximos jogos e veja a tabela mudar</small></span>
+    </button>
+  </section>
+
+  <section class="barra-sim oculto" id="barraSim">
+    <span class="selo-sim">SIMULAÇÃO ATIVA</span>
+    <span id="simContagem" class="sutil"></span>
+    <div class="acoes">
+      <button class="btn" id="btnSortear" title="Preenche os jogos ainda sem placar com resultados prováveis">🎲 Sortear jogos restantes</button>
+      <button class="btn" id="btnChances" title="Simula o restante do campeonato milhares de vezes">📊 Calcular chances</button>
+      <button class="btn perigo" id="btnLimpar">Limpar simulação</button>
+    </div>
+  </section>
+
+  <nav class="abas" id="abas">
+    <button class="aba ativa" data-aba="tabela">Tabela</button>
+    <button class="aba" data-aba="jogos">Jogos</button>
+    <button class="aba" data-aba="artilharia">Artilharia</button>
+    <button class="aba" data-aba="destaques">Destaques</button>
+  </nav>
+
+  <main class="conteudo">
+    <section id="aba-tabela" class="painel ativa"></section>
+    <section id="aba-jogos" class="painel">
+     <div class="jogos-layout" id="jogosLayout">
+      <div>
+      <div class="filtros">
+        <div class="chips" id="filtroJogos">
+          <button class="chip ativo" data-f="proximos">Próximos</button>
+          <button class="chip" data-f="realizados">Realizados</button>
+          <button class="chip" data-f="todos">Todos</button>
+        </div>
+        <select id="filtroTime" aria-label="Filtrar por time"><option value="">Todos os times</option></select>
+      </div>
+      <div id="listaJogos"></div>
+      </div>
+      <aside id="miniTabela" class="mini oculto" aria-label="Tabela simulada"></aside>
+     </div>
+    </section>
+    <section id="aba-artilharia" class="painel"></section>
+    <section id="aba-destaques" class="painel"></section>
+  </main>
+
+  <footer class="rodape">
+    Dados: API pública da ESPN (não oficial), buscados direto pelo navegador e guardados em cache por 30 min. Simulações ficam salvas só neste navegador.
+    Zonas de classificação são referência e podem variar conforme o regulamento. <a href="https://github.com/Fau009/simulador-futebol" target="_blank" rel="noopener">Código no GitHub</a>
+  </footer>
+
+  <script src="js/competicoes.js"></script>
+  <script src="js/dados.js"></script>
+  <script src="js/calculo.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
