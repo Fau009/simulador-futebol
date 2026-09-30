@@ -9,7 +9,20 @@
   const dataHora = ms => new Date(ms).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   const pct = x => x >= 0.995 ? '100%' : x > 0 && x < 0.005 ? '<1%' : Math.round(x * 100) + '%';
 
-  const S = { pais: null, comp: null, dados: null, sim: {}, simAtivo: false, chances: null, filtro: 'proximos', time: '', abertos: new Set(), aba: 'tabela' };
+  const PERFIS = {
+    conservador: { nome: 'Conservador', ico: '🛡️', resumo: 'Vai sempre no resultado de maior chance.',
+      efeito: 'Quase nunca prevê empate nem zebra, e os placares são "secos" (1×0, 2×0). A tabela prevista fica mais concentrada nos favoritos.',
+      numeros: { acerto: 49.5, V: 73, E: 0, D: 27, gols: 1.6 } },
+    moderado: { nome: 'Moderado', ico: '⚖️', resumo: 'Resultado de maior chance, mas vira empate quando vitória e derrota estão a menos de 12 pontos.',
+      efeito: 'Os empates aparecem na mesma proporção da vida real. Acerta um pouco menos que o conservador, mas a tabela prevista fica mais realista.',
+      numeros: { acerto: 47.3, V: 57, E: 26.5, D: 17, gols: 1.6 } },
+    arriscado: { nome: 'Arriscado', ico: '🔥', resumo: 'Como o moderado, mas aposta no azarão quando o índice de zebra passa de 33%, e considera o jogo mais aberto (gols × 1,25).',
+      efeito: 'Aposta em zebra em cerca de 12% dos jogos (acertou 35,8% delas, contra 33,2% esperados) e prevê placares com mais gols, mais perto da média real.',
+      numeros: { acerto: 48.4, V: 62, E: 14, D: 23, gols: 2.5 } }
+  };
+  const REAL = { V: 44, E: 27, D: 29, gols: 2.6 };
+
+  const S = { pais: null, comp: null, dados: null, sim: {}, simAtivo: false, perfil: 'moderado', chances: null, filtro: 'proximos', time: '', abertos: new Set(), aba: 'tabela' };
 
   function aviso(txt) {
     const t = document.createElement('div'); t.className = 'toast'; t.textContent = txt;
@@ -93,6 +106,18 @@
     $('#btnChances').classList.toggle('oculto', S.comp.tipo !== 'liga' || S.dados?.tabela.length !== 1);
   }
 
+  function renderPerfil() {
+    const p = PERFIS[S.perfil], n = p.numeros;
+    document.querySelectorAll('#perfis button').forEach(b => { const on = b.dataset.perfil === S.perfil; b.classList.toggle('ativo', on); b.setAttribute('aria-checked', on); });
+    $('#btnPrever').textContent = `🧮 Prever (${p.nome})`;
+    const barra = (rot, x, cor) => `<div class="mini-barra"><span>${rot}</span><i style="width:${x}%;background:${cor}"></i><b>${String(x).replace('.', ',')}%</b></div>`;
+    $('#perfilInfo').innerHTML = `<p><b>${p.ico} ${p.nome}:</b> ${p.resumo}</p><p class="sutil">${p.efeito}</p>
+      <div class="perfil-num"><div><small>Acerto do resultado (teste em 2025)</small><b>${String(n.acerto).replace('.', ',')}%</b><small>chute aleatório: 33% · sempre o mandante: 44%</small></div>
+      <div class="dist"><small>Resultados que ele prevê × a vida real</small>
+        ${barra('Mandante', n.V, 'var(--v)')}${barra('Empate', n.E, 'var(--e)')}${barra('Visitante', n.D, '#2563eb')}
+        <small>Real: ${REAL.V}% · ${REAL.E}% · ${REAL.D}% · gols por jogo previstos ${String(n.gols).replace('.', ',')} (real ${String(REAL.gols).replace('.', ',')})</small></div></div>`;
+  }
+
   function definirPlacar(jogo, a, b) {
     if (a === '' && b === '') { delete S.sim[jogo.id]; }
     else {
@@ -110,7 +135,7 @@
     const m = S.modelo; let n = 0;
     for (const j of S.dados.jogos) {
       if (!pendente(j)) continue;
-      S.sim[j.id] = modo === 'a' ? [...Calculo.prever(j, m).placar, null, 'a'] : [...Calculo.sortearPlacar(j, m), null, 'r']; n++;
+      S.sim[j.id] = modo === 'a' ? [...Calculo.prever(j, m, S.perfil).placar, null, 'a', S.perfil] : [...Calculo.sortearPlacar(j, m), null, 'r']; n++;
     }
     if (S.comp.tipo === 'copa') { // desempata confrontos sorteados nos pênaltis
       for (const f of Calculo.chaves(S.dados.jogos, S.sim)) for (const c of f.confrontos) {
@@ -122,7 +147,7 @@
       }
     }
     salvarSim(); renderTudo();
-    aviso(!n ? 'Não há jogos sem placar para preencher' : modo === 'a' ? `${n} jogo(s) previstos pelo algoritmo (casa/fora, jogos recentes com mais peso)` : `${n} jogo(s) sorteados com as chances do algoritmo`);
+    aviso(!n ? 'Não há jogos sem placar para preencher' : modo === 'a' ? `${n} jogo(s) previstos pelo algoritmo · perfil ${PERFIS[S.perfil].nome}` : `${n} jogo(s) sorteados com as chances do algoritmo`);
   }
 
   function calcularChances() {
@@ -206,7 +231,7 @@
   }
   function htmlStatus(j) {
     const s = S.sim[j.id];
-    if (s) return `<span class="tag-sim">${s[3] === 'a' ? 'algoritmo' : s[3] === 'r' ? 'sorteado' : 'simulado'}</span>${j.st === 'fim' ? `<br>oficial ${j.gc}×${j.gf}` : ''} <button class="desfazer" data-desfazer="${j.id}">desfazer</button>`;
+    if (s) return `<span class="tag-sim">${s[3] === 'a' ? (PERFIS[s[4]] ? PERFIS[s[4]].ico + ' ' + PERFIS[s[4]].nome.toLowerCase() : 'algoritmo') : s[3] === 'r' ? 'sorteado' : 'simulado'}</span>${j.st === 'fim' ? `<br>oficial ${j.gc}×${j.gf}` : ''} <button class="desfazer" data-desfazer="${j.id}">desfazer</button>`;
     if (j.st === 'vivo') return `<span class="vivo">● ao vivo ${esc(j.relogio || '')}</span>`;
     if (j.st === 'adiado') return 'adiado';
     if (j.st === 'cancelado') return 'cancelado';
@@ -233,7 +258,7 @@
   // previsão do algoritmo para jogos ainda não disputados
   function htmlPrevisao(j) {
     if (j.st === 'fim' || j.st === 'cancelado' || j.indef || !S.modelo?.jogos) return '';
-    const p = Calculo.prever(j, S.modelo);
+    const p = Calculo.prever(j, S.modelo, S.perfil);
     const f = x => (x * 100).toFixed(0) + '%', g = x => x.toFixed(2).replace('.', ',');
     return `<div class="previsao"><b>🧮 Previsão: ${p.placar[0]} × ${p.placar[1]}</b> · gols esperados ${g(p.lc)} × ${g(p.lf)}
       <div class="prob"><i style="width:${p.pV * 100}%" title="${esc(time(j.c).nome)} vence">${f(p.pV)}</i><i style="width:${p.pE * 100}%" title="Empate">${f(p.pE)}</i><i style="width:${p.pD * 100}%" title="${esc(time(j.f).nome)} vence">${f(p.pD)}</i></div>
@@ -266,20 +291,73 @@
     <div class="g-legenda"><span class="c">${esc(casa)} vence<b>${pc(p.pV)}</b></span><span class="e">Empate<b>${pc(p.pE)}</b></span><span class="f">${esc(fora)} vence<b>${pc(p.pD)}</b></span></div>`;
   }
 
+  // barras V/E/D de um componente, com a diferença em relação ao combinado
+  function linhaComponente(rot, desc, v, e, d, ref) {
+    const dif = (x, y) => { const k = Math.round((x - y) * 100); return !ref || !k ? '' : `<em class="${k > 0 ? 'sobe' : 'desce'}">${k > 0 ? '▲' : '▼'}${Math.abs(k)}</em>`; };
+    return `<tr><th>${rot}<small>${desc}</small></th>
+      <td><div class="celula"><i style="width:${v * 100}%;background:var(--v)"></i><span>${pc(v)}${dif(v, ref?.[0])}</span></div></td>
+      <td><div class="celula"><i style="width:${e * 100}%;background:var(--e)"></i><span>${pc(e)}${dif(e, ref?.[1])}</span></div></td>
+      <td><div class="celula"><i style="width:${d * 100}%;background:#2563eb"></i><span>${pc(d)}${dif(d, ref?.[2])}</span></div></td></tr>`;
+  }
+
   function abrirPrevisao(j) {
-    const m = S.modelo, p = Calculo.prever(j, m), x = m.explicar(j);
+    const m = S.modelo, x = m.explicar(j);
+    const todos = Object.fromEntries(Object.keys(PERFIS).map(k => [k, Calculo.prever(j, m, k)]));
+    const p = todos[S.perfil], P = p.P, z = p.zebra;
     const A = time(j.c), B = time(j.f);
     const nomeR = { V: `vitória do ${esc(A.curto)}`, E: 'empate', D: `vitória do ${esc(B.curto)}` };
     const lin = (rot, gols, jogos, media) => `${rot}: <b>${n2(gols / Math.max(jogos, 1e-9))}</b> por jogo (${n2(gols)} gols em ${n2(jogos)} jogos ponderados; média da liga ${n2(media)})`;
     const ca = x.casa.casa || { gp: 0, gc: 0, n: 0 }, fo = x.fora.fora || { gp: 0, gc: 0, n: 0 };
+    const azNome = esc(time(z.az).curto), favNome = esc(time(z.fav).curto);
+    const w = Previsao.CFG.elo.peso;
+    const comb = [P.pV, P.pE, P.pD];
+    const porque = k => {
+      const r = todos[k]; const c = Previsao.CFG;
+      if (k === 'conservador') return `Maior chance: ${nomeR[r.resultado]} (${pc({ V: r.pV, E: r.pE, D: r.pD }[r.resultado])}).`;
+      const base = r.equilibrado ? `Vitória e derrota a ${Math.round(Math.abs(r.pV - r.pD) * 100)} pontos (menos de ${Math.round(c.equilibrio * 100)}): empate.` : `Diferença de ${Math.round(Math.abs(r.pV - r.pD) * 100)} pontos: fica com o de maior chance.`;
+      if (k === 'moderado') return base;
+      return r.motivo === 'zebra' ? `Índice de zebra ${pc(z.pZ)} (≥ ${Math.round(c.zebra.limiar * 100)}%): aposta no azarão, ${azNome}.` : `Índice de zebra ${pc(z.pZ)} (abaixo de ${Math.round(c.zebra.limiar * 100)}%): não arrisca. ${base} Jogo mais aberto (gols × ${String(c.arriscadoAbertura).replace('.', ',')}).`;
+    };
     $('#modalTitulo').innerHTML = `${escudo(j.c)} ${esc(A.nome)} <span class="sutil">×</span> ${esc(B.nome)} ${escudo(j.f)}`;
     $('#modalCorpo').innerHTML = `
       <p class="sutil">${diaLongo(j.d)} · ${hora(j.d)}${j.local ? ' · ' + esc(j.local) : ''}</p>
       <div class="previsao-topo">
         ${velocimetro(p, A.curto, B.curto)}
-        <div class="resposta"><span>Placar previsto</span><b>${p.placar[0]} × ${p.placar[1]}</b><span>${nomeR[p.resultado]}</span></div>
+        <div class="resposta"><span>Placar previsto · ${PERFIS[S.perfil].ico} ${PERFIS[S.perfil].nome}</span><b>${p.placar[0]} × ${p.placar[1]}</b><span>${nomeR[p.resultado]}</span></div>
       </div>
 
+      <h3>O que cada perfil faria</h3>
+      <div class="perfis-jogo">${Object.entries(PERFIS).map(([k, pf]) => `
+        <div class="perfil-card${k === S.perfil ? ' ativo' : ''}">
+          <div class="pc-topo">${pf.ico} <b>${pf.nome}</b></div>
+          <div class="pc-placar">${todos[k].placar[0]} × ${todos[k].placar[1]}</div>
+          <p>${porque(k)}</p>
+          ${S.simAtivo ? `<button class="btn mini" data-usar="${k}">Usar este</button>` : ''}
+        </div>`).join('')}</div>
+      <p class="sutil">As chances (velocímetro) são as mesmas nos 3 perfis. O que muda é a regra que escolhe o placar. Troque o perfil padrão na barra do simulador.</p>
+
+      <h3>Como cada parte do cálculo vê o jogo</h3>
+      <table class="componentes"><tr><th></th><th>${esc(A.curto)}</th><th>Empate</th><th>${esc(B.curto)}</th></tr>
+        ${linhaComponente('Gols esperados', `Dixon-Coles · peso ${Math.round((1 - w) * 100)}%`, P.dc.V, P.dc.E, P.dc.D, comb)}
+        ${linhaComponente('Elo', `força acumulada · peso ${Math.round(w * 100)}%`, P.elo.V, P.elo.E, P.elo.D, comb)}
+        ${linhaComponente('Combinado', 'o que vale', P.pV, P.pE, P.pD, null)}
+      </table>
+      <p class="sutil">▲▼ = quanto cada visão fica acima ou abaixo do resultado combinado, em pontos percentuais. Quando as duas visões discordam, o Elo pesa mais, porque foi o que mais acertou no teste.</p>
+
+      <h3>Índice de zebra</h3>
+      <div class="zebra-box">
+        <div class="zebra-num"><small>Azarão: ${azNome}</small><b>${pc(z.pZ)}</b><small>chance pelo modelo: ${pc(z.pAz)}</small></div>
+        <ul class="sinais">${z.x.map((_, i) => i < 2 ? '' : (() => {
+          const ef = z.efeito[i] * 100; const b = z.brutos;
+          const det = [null, null, `gols esperados no jogo: ${n2(P.lc + P.lf)}`, `erro médio recente: ${azNome} ${n2(b.imprevAz)} · ${favNome} ${n2(b.imprevFav)} pts`,
+            `pontos por jogo nos últimos 5: ${azNome} ${n2(b.formaAz)} · ${favNome} ${n2(b.formaFav)}`, `dias desde o último jogo: ${azNome} ${Math.round(b.descansoAz)} · ${favNome} ${Math.round(b.descansoFav)}`,
+            b.h2h ? `${b.h2h} confrontos recentes` : 'sem confrontos recentes'][i];
+          return `<li><span>${z.nomes[i]}<small>${det}</small></span><em class="${ef > 0.05 ? 'sobe' : ef < -0.05 ? 'desce' : ''}">${Math.abs(ef) < 0.05 ? '0,0' : (ef > 0 ? '+' : '') + ef.toFixed(1).replace('.', ',')} pts</em></li>`;
+        })()).join('')}</ul>
+      </div>
+      <p class="sutil">Os pesos de cada sinal foram aprendidos por regressão logística em 2023–2024 e testados em 2025. Quase todos ficaram perto de zero: na prática, a chance do azarão pelo modelo já explica as zebras. Por isso a mudança costuma ser pequena. O perfil Arriscado aposta na zebra quando o índice chega a ${Math.round(Previsao.CFG.zebra.limiar * 100)}%.</p>
+
+      <h3>O cálculo, passo a passo</h3>
       <ol class="passos">
         <li><h4>Média da liga</h4>
           <p>Mandantes fazem <b>${n2(x.mCasa)}</b> gols por jogo e visitantes <b>${n2(x.mFora)}</b>, considerando esta temporada e as 2 anteriores${m.historico ? '' : ' (histórico ainda carregando: só esta temporada)'}. Jogos recentes pesam mais (meia-vida de ${x.meiaVida} dias).</p></li>
@@ -291,24 +369,24 @@
           ${lin('Sofre', fo.gc, fo.n, x.mCasa)} → defesa <b>${n2(x.fora.dfFora)}×</b>.</p>
           <p class="sutil">Com poucos jogos, cada time recebe ${x.K} jogos "na média da liga" somados, para não exagerar em poucos resultados.</p></li>
         <li><h4>Gols esperados</h4>
-          <p class="conta">${esc(A.curto)}: ${n2(x.mCasa)} × ${n2(x.casa.atCasa)} (ataque) × ${n2(x.fora.dfFora)} (defesa do ${esc(B.curto)}) = <b>${n2(x.lc0)}</b></p>
-          <p class="conta">${esc(B.curto)}: ${n2(x.mFora)} × ${n2(x.fora.atFora)} (ataque) × ${n2(x.casa.dfCasa)} (defesa do ${esc(A.curto)}) = <b>${n2(x.lf0)}</b></p></li>
+          <p class="conta">${esc(A.curto)}: ${n2(x.mCasa)} × ${n2(x.casa.atCasa)} × ${n2(x.fora.dfFora)} = <b>${n2(x.lc0)}</b></p>
+          <p class="conta">${esc(B.curto)}: ${n2(x.mFora)} × ${n2(x.fora.atFora)} × ${n2(x.casa.dfCasa)} = <b>${n2(x.lf0)}</b></p></li>
         <li><h4>Confronto direto</h4>${htmlConfronto(j)}
           ${x.confronto.length ? `<p class="conta">Fator aplicado: ${esc(A.curto)} × ${n2(x.fc)} → <b>${n2(p.lc)}</b> · ${esc(B.curto)} × ${n2(x.ff)} → <b>${n2(p.lf)}</b></p>` : ''}</li>
-        <li><h4>Chances de cada placar (distribuição de Poisson)</h4>
-          <table class="top-placares"><tr>${p.top.map(([a, b, q]) => `<td><b>${a}×${b}</b><br>${(q * 100).toFixed(1)}%</td>`).join('')}</tr></table>
-          <p>Somando todos os placares: ${esc(A.curto)} vence ${pc(p.pV)}, empate ${pc(p.pE)}, ${esc(B.curto)} vence ${pc(p.pD)}.</p></li>
-        <li><h4>Decisão</h4>
-          <p>${p.equilibrado
-            ? `Vitória (${pc(p.pV)}) e derrota (${pc(p.pD)}) estão a menos de ${pc(p.equilibrio)} de distância: o jogo é equilibrado, então a previsão é <b>empate</b>, no placar de empate mais provável (<b>${p.placar[0]}×${p.placar[1]}</b>).`
-            : `O resultado mais provável é <b>${nomeR[p.resultado]}</b>. Dentro dele, o placar mais provável é <b>${p.placar[0]}×${p.placar[1]}</b>.`}</p>
-          <p class="sutil">No teste com 1.674 jogos de 2025, este método acertou o resultado em cerca de 47% das vezes. Futebol tem muito acaso.</p></li>
-      </ol>
-      ${S.simAtivo ? `<div class="modal-acoes"><button class="btn destaque-btn" id="usarPrevisao">Usar ${p.placar[0]} × ${p.placar[1]} na simulação</button></div>` : ''}`;
-    const b = $('#usarPrevisao');
-    if (b) b.onclick = () => {
-      S.sim[j.id] = [p.placar[0], p.placar[1], null, 'a']; salvarSim(); $('#modalPrev').close(); renderJogos(); renderSimBarra();
-    };
+        <li><h4>Chances pelos gols (Dixon-Coles)</h4>
+          <table class="top-placares"><tr>${p.top.map(([a2, b2, q]) => `<td><b>${a2}×${b2}</b><br>${(q * 100).toFixed(1)}%</td>`).join('')}</tr></table>
+          <p>Somando os placares: ${esc(A.curto)} ${pc(P.dc.V)} · empate ${pc(P.dc.E)} · ${esc(B.curto)} ${pc(P.dc.D)}.</p></li>
+        <li><h4>Rating Elo</h4>
+          <p class="conta">${esc(A.curto)} <b>${Math.round(x.eloC)}</b> + ${Previsao.CFG.elo.casa} (mando) × ${esc(B.curto)} <b>${Math.round(x.eloF)}</b> → diferença ${Math.round(x.eloC + Previsao.CFG.elo.casa - x.eloF)}</p>
+          <p>Pelo Elo: ${esc(A.curto)} ${pc(P.elo.V)} · empate ${pc(P.elo.E)} · ${esc(B.curto)} ${pc(P.elo.D)}.</p></li>
+        <li><h4>Combinação e decisão</h4>
+          <p>${Math.round((1 - w) * 100)}% gols + ${Math.round(w * 100)}% Elo = ${esc(A.curto)} <b>${pc(P.pV)}</b> · empate <b>${pc(P.pE)}</b> · ${esc(B.curto)} <b>${pc(P.pD)}</b>.</p>
+          <p>Perfil ${PERFIS[S.perfil].nome}: ${porque(S.perfil)} Dentro do resultado escolhido, o placar mais provável é <b>${p.placar[0]}×${p.placar[1]}</b>.</p></li>
+      </ol>`;
+    document.querySelectorAll('#modalCorpo [data-usar]').forEach(b => b.onclick = () => {
+      const r = todos[b.dataset.usar];
+      S.sim[j.id] = [r.placar[0], r.placar[1], null, 'a', b.dataset.usar]; salvarSim(); $('#modalPrev').close(); renderJogos(); renderSimBarra();
+    });
     $('#modalPrev').showModal();
   }
   $('#modalPrev').addEventListener('click', e => { if (e.target.id === 'modalPrev') e.target.close(); }); // clique fora fecha
@@ -447,6 +525,7 @@
     renderSimBarra(); renderTabela(); renderJogos();
     if (S.simAtivo) { S.filtro = 'proximos'; document.querySelectorAll('#filtroJogos .chip').forEach(c => c.classList.toggle('ativo', c.dataset.f === 'proximos')); mostrarAba(S.comp.tipo === 'copa' ? 'tabela' : 'jogos'); }
   };
+  $('#perfis').onclick = e => { const k = e.target.closest('[data-perfil]')?.dataset.perfil; if (k) { S.perfil = k; A.gravar('perfil', k); renderPerfil(); } };
   $('#btnSortear').onclick = () => preencher('r');
   $('#btnPrever').onclick = () => preencher('a');
   $('#btnChances').onclick = calcularChances;
@@ -497,6 +576,7 @@
 
   // ---------- início ----------
   aplicarTema(A.ler('tema') || 'auto');
+  S.perfil = PERFIS[A.ler('perfil')] ? A.ler('perfil') : 'moderado'; renderPerfil();
   montarPaises();
   abrir(location.hash.slice(1) || A.ler('ultimo') || 'bra.1');
 })();

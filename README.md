@@ -33,23 +33,26 @@ Tabelas, jogos, artilharia e destaques dos campeonatos de 6 países, com um **mo
 
 ## O algoritmo de previsão
 
-1. **Base**: a temporada atual e as 2 anteriores, com meia-vida de 120 dias (um jogo de 4 meses atrás vale metade de um recente).
-2. **Casa e fora separados**: o ataque do mandante em casa e a defesa do visitante fora, comparados com a média de gols de mandantes e visitantes da liga. Com poucos jogos, cada time é puxado para a média (5 jogos "médios" somados).
-3. **Gols esperados**: média da liga × ataque × defesa do adversário, para cada lado.
-4. **Confronto direto**: nos últimos 6 jogos entre os dois (o mesmo mando pesa o dobro), compara os gols reais com os esperados e faz um ajuste moderado.
-5. **Chances**: a distribuição de Poisson dá a probabilidade de cada placar e de vitória, empate e derrota.
-6. **Decisão**: se vitória e derrota estão a menos de 12 pontos de distância, o jogo é considerado equilibrado e a previsão é empate. Senão, vale o resultado mais provável, no placar mais provável dele.
+Cada jogo passa por duas visões, que depois são combinadas:
 
-**Teste retroativo**: foram previstos 1.674 jogos de 2025 (Brasil, Inglaterra, Espanha, Itália e Alemanha), usando só os jogos anteriores a cada um.
+1. **Gols esperados com correção Dixon-Coles:**
+   - ataque e defesa de cada time em casa e fora, comparados com a média da liga;
+   - temporada atual e as 2 anteriores, com meia-vida de 120 dias;
+   - com poucos jogos, cada time é puxado para a média;
+   - ajuste moderado pelo confronto direto (últimos 6 jogos).
+2. **Rating Elo:** a força acumulada dos times (K=10, vantagem de mando de 60 pontos, margem de gols).
+3. **Combinado:** 20% gols esperados + 80% Elo. É o que aparece no velocímetro.
+4. **Índice de zebra:** regressão logística com a chance do azarão, a volatilidade, a imprevisibilidade, a forma, o descanso e o confronto direto.
 
-| Configuração | Brier (menor é melhor) |
-|---|---|
-| Só a temporada atual | 0,615 |
-| + temporadas anteriores | 0,607 |
-| + confronto direto moderado | 0,605 |
-| Confronto direto com peso forte | 0,612 (piora) |
+**Perfis:** as chances são as mesmas nos três. O perfil só muda a regra que transforma as chances em placar.
 
-O algoritmo acerta o resultado em **~48%** dos jogos (chute aleatório: 33%; sempre o mandante: ~45%). A distribuição prevista (52% mandante, 29% empate, 19% visitante) fica próxima da real (45%, 26% e 29%).
+| Perfil | Regra | Acerto (teste 2025) |
+|---|---|---|
+| 🛡️ Conservador | Sempre o resultado de maior chance | 49,5% |
+| ⚖️ Moderado | Empate quando vitória e derrota estão a menos de 12 pontos | 47,3% (empates na proporção real) |
+| 🔥 Arriscado | Aposta no azarão com índice de zebra ≥ 33% e considera o jogo mais aberto (gols × 1,25) | 48,4% (gols por jogo perto do real) |
+
+Tudo foi calibrado por teste retroativo com 8.695 jogos de 8 ligas (2023–2025). Os scripts e os resultados estão em [pesquisa/](pesquisa/).
 
 ## Como funciona
 

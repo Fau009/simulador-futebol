@@ -50,6 +50,46 @@ select { font: inherit; color: var(--texto); background: var(--sup); border: 1px
 .barra-sim { max-width: 1200px; margin: 12px auto 0; padding: 10px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--sim-claro); border: 1px dashed var(--sim); border-radius: 12px; }
 .barra-sim .acoes { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
 .btn.destaque-btn { border-color: var(--sim); color: var(--sim); font-weight: 600; }
+.perfis-bloco { width: 100%; }
+.perfis { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.perfis-rot { font-size: 13px; font-weight: 600; color: var(--sim); margin-right: 4px; }
+.perfis button { font: inherit; font-size: 13px; border: 1px solid var(--sim); background: var(--sup); color: var(--sim); border-radius: 18px; padding: 5px 12px; cursor: pointer; }
+.perfis button.ativo { background: var(--sim); color: #fff; }
+.perfil-info { margin-top: 8px; background: var(--sup); border: 1px solid var(--borda); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.perfil-info p { margin: 0 0 4px; }
+.perfil-num { display: grid; grid-template-columns: 200px 1fr; gap: 14px; margin-top: 8px; align-items: start; }
+.perfil-num small { display: block; color: var(--sutil); font-size: 11.5px; }
+.perfil-num > div > b { display: block; font-size: 26px; color: var(--sim); line-height: 1.2; }
+.mini-barra { display: grid; grid-template-columns: 70px 1fr 42px; gap: 6px; align-items: center; font-size: 12px; margin: 2px 0; }
+.mini-barra i { display: block; height: 8px; border-radius: 4px; }
+.mini-barra b { text-align: right; }
+.componentes { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 4px; }
+.componentes th { text-align: left; font-weight: 600; padding: 4px 6px 4px 0; vertical-align: middle; }
+.componentes tr:first-child th { text-align: center; color: var(--sutil); font-size: 11.5px; }
+.componentes tr:first-child th:first-child { text-align: left; }
+.componentes th small { display: block; font-weight: 400; color: var(--sutil); font-size: 11px; }
+.componentes td { padding: 4px 3px; width: 27%; }
+.componentes tr:last-child th, .componentes tr:last-child td { border-top: 1px solid var(--borda); padding-top: 7px; }
+.celula { position: relative; background: var(--sup2); border-radius: 5px; height: 24px; overflow: hidden; }
+.celula i { position: absolute; left: 0; top: 0; bottom: 0; opacity: .35; }
+.celula span { position: relative; display: flex; align-items: center; justify-content: center; gap: 4px; height: 100%; font-weight: 700; font-size: 12px; }
+em.sobe { color: var(--v); font-style: normal; font-size: 10.5px; }
+em.desce { color: var(--d); font-style: normal; font-size: 10.5px; }
+.perfis-jogo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.perfil-card { border: 1px solid var(--borda); border-radius: 10px; padding: 8px 10px; font-size: 12px; }
+.perfil-card.ativo { border: 2px solid var(--sim); background: var(--sim-claro); }
+.perfil-card .pc-topo { font-size: 12.5px; }
+.perfil-card .pc-placar { font-size: 22px; font-weight: 800; color: var(--sim); margin: 2px 0; }
+.perfil-card p { margin: 0 0 6px; color: var(--sutil); }
+.zebra-box { display: grid; grid-template-columns: 130px 1fr; gap: 12px; align-items: start; }
+.zebra-num { text-align: center; background: var(--sup2); border-radius: 10px; padding: 8px; }
+.zebra-num b { display: block; font-size: 26px; color: var(--sim); }
+.zebra-num small { display: block; color: var(--sutil); font-size: 11px; }
+.sinais { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+.sinais li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--borda); }
+.sinais li small { display: block; color: var(--sutil); font-size: 11px; }
+.sinais em { font-style: normal; white-space: nowrap; font-weight: 700; color: var(--sutil); }
+#modalCorpo h3 { font-size: 14px; margin: 16px 0 6px; }
 .como { width: 100%; font-size: 13px; }
 .como summary { cursor: pointer; color: var(--sim); font-weight: 600; }
 .como ul { margin: 6px 0 0; padding-left: 20px; }
@@ -241,5 +281,7 @@ table.classif { width: 100%; border-collapse: collapse; font-variant-numeric: ta
   .jogo .casa img, .jogo .fora img { width: 18px; height: 18px; }
   .duas { grid-template-columns: 1fr; }
   .jogos-layout.com-mini { grid-template-columns: 1fr; }
+  .perfil-num, .zebra-box { grid-template-columns: 1fr; }
+  .perfis-jogo { grid-template-columns: 1fr; }
   .mini { display: none; }
 }

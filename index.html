@@ -38,28 +38,38 @@
     <span id="simContagem" class="sutil"></span>
     <div class="acoes">
       <button class="btn" id="btnSortear" title="Preenche os jogos sem placar com resultados sorteados (com a sorte do futebol)">🎲 Sortear (aleatório)</button>
-      <button class="btn destaque-btn" id="btnPrever" title="Preenche os jogos sem placar com o resultado mais provável pelo algoritmo">🧮 Prever pelo algoritmo</button>
+      <button class="btn destaque-btn" id="btnPrever" title="Preenche os jogos sem placar com a previsão do perfil escolhido">🧮 Prever pelo algoritmo</button>
       <button class="btn" id="btnChances" title="Simula o restante do campeonato milhares de vezes">📊 Calcular chances</button>
       <button class="btn perigo" id="btnLimpar">Limpar simulação</button>
     </div>
+    <div class="perfis-bloco">
+      <div class="perfis" id="perfis" role="radiogroup" aria-label="Perfil do algoritmo">
+        <span class="perfis-rot">Perfil do algoritmo:</span>
+        <button data-perfil="conservador" role="radio">🛡️ Conservador</button>
+        <button data-perfil="moderado" role="radio">⚖️ Moderado</button>
+        <button data-perfil="arriscado" role="radio">🔥 Arriscado</button>
+      </div>
+      <div class="perfil-info" id="perfilInfo"></div>
+    </div>
     <details class="como">
       <summary>ℹ️ Como o algoritmo funciona</summary>
-      <p>Para cada jogo, calcula os <b>gols esperados</b> de cada time:</p>
+      <p>Cada jogo passa por <b>duas visões</b>, que depois são combinadas:</p>
       <ul>
-        <li><b>Mandante:</b> média de gols dos mandantes na liga × ataque do time <b>em casa</b> × defesa do adversário <b>fora</b>.</li>
-        <li><b>Visitante:</b> média de gols dos visitantes × ataque do time <b>fora</b> × defesa do adversário <b>em casa</b>.</li>
-        <li><b>Base:</b> a temporada atual e as 2 anteriores. Jogos recentes pesam mais: um jogo de 4 meses atrás vale metade de um desta semana.</li>
-        <li><b>Confronto direto:</b> nos últimos 6 jogos entre os dois (o mesmo mando pesa o dobro), compara os gols reais com os esperados e faz um ajuste moderado. Um ajuste forte piorou as previsões nos testes, porque poucos jogos enganam.</li>
-        <li><b>Começo de temporada:</b> com poucos jogos, cada time é puxado para a média da liga, para não exagerar em poucos resultados.</li>
+        <li><b>Gols esperados (Dixon-Coles):</b>
+          <ul>
+            <li>considera o ataque e a defesa de cada time em casa e fora, comparados com a média da liga;</li>
+            <li>usa a temporada atual e as 2 anteriores, com mais peso para os jogos recentes;</li>
+            <li>faz um ajuste moderado pelo confronto direto;</li>
+            <li>corrige os placares baixos (0×0, 1×1), que o Poisson simples erra.</li>
+          </ul>
+        </li>
+        <li><b>Rating Elo:</b> uma nota de força que sobe e desce a cada jogo. Vitória larga e vitória fora de casa mexem mais. Reage bem à fase do time.</li>
+        <li><b>Combinado:</b> 20% gols esperados + 80% Elo. É o que aparece no velocímetro.</li>
       </ul>
-      <p>Com os gols esperados, a distribuição de Poisson dá as chances de vitória, empate e derrota.</p>
-      <ul>
-        <li><b>🧮 Prever:</b> escolhe o resultado mais provável e, dentro dele, o placar mais provável. Quando vitória e derrota têm chances parecidas, prevê empate; sem essa regra, quase nunca daria empate.</li>
-        <li><b>🎲 Sortear:</b> sorteia o placar com essas mesmas chances, então zebras podem acontecer.</li>
-        <li><b>📊 Chances:</b> repete o sorteio 3.000 vezes.</li>
-      </ul>
-      <p>Abra um jogo na lista para ver a previsão e o confronto direto.</p>
-      <p><b>Teste:</b> prevendo 1.674 jogos já disputados de 2025 (Brasil, Inglaterra, Espanha, Itália e Alemanha), usando só os jogos anteriores a cada um, acertou o resultado em cerca de 47%. Chutar ao acaso dá 33%; apostar sempre no mandante, 45%.</p>
+      <p><b>Perfis:</b> as chances são as mesmas. O perfil só muda a regra que transforma as chances em placar.</p>
+      <p><b>Índice de zebra:</b> parte da chance do azarão e testa sinais extras: volatilidade, imprevisibilidade, forma recente, descanso e confronto direto.</p>
+      <p><b>Como foi calibrado:</b> todos os números foram escolhidos por teste retroativo com 8.695 jogos de 2023 a 2025 em 8 ligas, prevendo cada jogo só com os anteriores. O resultado de cada perfil aparece acima, ao escolhê-lo.</p>
+      <p><b>Honestidade:</b> no teste, o Elo foi o que mais melhorou a previsão. Os sinais extras de zebra quase não mudaram nada: a própria chance do azarão já explica as zebras.</p>
     </details>
   </section>
 
@@ -104,6 +114,7 @@
 
   <script src="js/competicoes.js"></script>
   <script src="js/dados.js"></script>
+  <script src="js/previsao.js"></script>
   <script src="js/calculo.js"></script>
   <script src="js/app.js"></script>
 </body>
