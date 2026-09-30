@@ -49,6 +49,22 @@ select { font: inherit; color: var(--texto); background: var(--sup); border: 1px
 
 .barra-sim { max-width: 1200px; margin: 12px auto 0; padding: 10px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--sim-claro); border: 1px dashed var(--sim); border-radius: 12px; }
 .barra-sim .acoes { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.btn.destaque-btn { border-color: var(--sim); color: var(--sim); font-weight: 600; }
+.como { width: 100%; font-size: 13px; }
+.como summary { cursor: pointer; color: var(--sim); font-weight: 600; }
+.como ul { margin: 6px 0 0; padding-left: 20px; }
+.como li { margin: 3px 0; }
+.previsao { grid-column: 1 / -1; margin: 6px auto 2px; width: min(420px, 100%); text-align: center; color: var(--texto); }
+.previsao .prob { display: flex; height: 18px; border-radius: 6px; overflow: hidden; margin: 5px 0 2px; font-size: 11px; font-weight: 700; color: #fff; }
+.previsao .prob i { font-style: normal; display: grid; place-items: center; min-width: 26px; }
+.previsao .prob i:nth-child(1) { background: var(--v); }
+.previsao .prob i:nth-child(2) { background: var(--e); }
+.previsao .prob i:nth-child(3) { background: #2563eb; }
+.previsao small { color: var(--sutil); font-size: 11px; }
+.previsao .base { display: block; margin-top: 6px; }
+.h2h { text-align: left; margin-top: 8px; font-size: 12px; color: var(--sutil); border-top: 1px solid var(--borda); padding-top: 6px; }
+.h2h b { color: var(--texto); }
+.h2h ul { margin: 4px 0 0; padding-left: 16px; }
 .selo-sim { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #fff; background: var(--sim); padding: 3px 8px; border-radius: 6px; }
 
 .abas { max-width: 1200px; margin: 16px auto 0; padding: 0 20px; display: flex; gap: 4px; border-bottom: 1px solid var(--borda); overflow-x: auto; }
@@ -164,6 +180,41 @@ table.classif { width: 100%; border-collapse: collapse; font-variant-numeric: ta
 .penaltis button { font: inherit; font-size: 12px; border: 1px solid var(--sim); color: var(--sim); background: var(--sup); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
 .penaltis button.ativo { background: var(--sim); color: #fff; }
 
+.modal { width: min(640px, calc(100% - 24px)); max-height: calc(100vh - 40px); border: 1px solid var(--borda); border-radius: 14px; padding: 0; background: var(--sup); color: var(--texto); box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+.modal::backdrop { background: rgba(10, 15, 12, .55); }
+.modal-topo { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; background: var(--sup); border-bottom: 1px solid var(--borda); margin: 0; }
+.modal-topo h2 { font-size: 16px; margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.modal-topo h2 img { width: 26px; height: 26px; object-fit: contain; }
+#modalCorpo { padding: 12px 18px 18px; font-size: 13.5px; }
+.resposta { display: flex; flex-direction: column; align-items: center; margin: 6px 0 10px; }
+.resposta span { font-size: 12px; color: var(--sutil); }
+.resposta b { font-size: 34px; line-height: 1.1; color: var(--sim); }
+.prob.grande { display: flex; height: 24px; border-radius: 8px; overflow: hidden; font-size: 12px; font-weight: 700; color: #fff; }
+.prob.grande i { font-style: normal; display: grid; place-items: center; min-width: 30px; }
+.prob.grande i:nth-child(1) { background: var(--v); } .prob.grande i:nth-child(2) { background: var(--e); } .prob.grande i:nth-child(3) { background: #2563eb; }
+.legenda-prob { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--sutil); margin: 3px 0 10px; }
+.previsao-topo { display: flex; flex-direction: column; align-items: center; margin: 4px 0 14px; }
+.velocimetro { width: min(320px, 100%); height: auto; display: block; }
+.velocimetro .g-casa { stroke: var(--v); }
+.velocimetro .g-empate { stroke: var(--e); }
+.velocimetro .g-fora { stroke: #2563eb; }
+.velocimetro .g-num { fill: #fff; font-size: 12px; font-weight: 700; text-anchor: middle; }
+.velocimetro .g-ponteiro { stroke: var(--texto); stroke-width: 4; stroke-linecap: round; }
+.velocimetro .g-eixo { fill: var(--texto); }
+.g-legenda { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: min(340px, 100%); margin-top: 4px; text-align: center; font-size: 11.5px; color: var(--sutil); }
+.g-legenda b { display: block; font-size: 17px; }
+.g-legenda .c b { color: var(--v); } .g-legenda .e b { color: var(--e); } .g-legenda .f b { color: #2563eb; }
+.previsao-topo .resposta { margin: 10px 0 0; }
+.passos { padding-left: 20px; margin: 0; }
+.passos li { margin-bottom: 12px; }
+.passos h4 { margin: 0 0 4px; font-size: 13.5px; }
+.passos p { margin: 3px 0; }
+.passos .conta { font-variant-numeric: tabular-nums; background: var(--sup2); border-radius: 6px; padding: 4px 8px; }
+.passos .h2h { border-top: 0; padding-top: 0; margin-top: 0; }
+.top-placares { border-collapse: collapse; width: 100%; font-size: 12px; text-align: center; }
+.top-placares td { border: 1px solid var(--borda); padding: 5px 2px; }
+.modal-acoes { display: flex; justify-content: center; margin-top: 6px; }
+.dica-prev { color: var(--sim); font-weight: 600; }
 .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--texto); color: var(--fundo); padding: 9px 16px; border-radius: 8px; z-index: 50; font-size: 13px; box-shadow: var(--sombra); max-width: calc(100% - 32px); }
 .rodape { max-width: 1200px; margin: 0 auto; padding: 10px 20px 30px; color: var(--sutil); font-size: 12px; }
 

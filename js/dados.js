@@ -127,5 +127,26 @@ const Dados = (() => {
     }
   }
 
-  return { carregar, armazenar };
+  // Jogos encerrados das 2 temporadas anteriores (base do algoritmo e do confronto direto). Só ligas.
+  async function historico(comp, temporada) {
+    if (comp.tipo !== 'liga') return [];
+    const k = 'hist-v1:' + comp.id + ':' + temporada;
+    const c = armazenar.ler(k);
+    if (c && Date.now() - c.em < 24 * 3600e3) return c.jogos;
+    const anos = comp.calendario === 'europeu' ? [temporada - 2, temporada - 1, temporada] : [temporada - 2, temporada - 1];
+    const validas = new Set([temporada - 1, temporada - 2]);
+    const lotes = await Promise.all(anos.map(a => json(`${SITE}/${comp.id}/scoreboard?dates=${a}&limit=1000`).catch(() => ({ events: [] }))));
+    const vistos = new Set(); const jogos = [];
+    for (const e of lotes.flatMap(l => l.events || [])) {
+      if (!validas.has(e.season?.year) || !e.status?.type?.completed || vistos.has(e.id)) continue;
+      vistos.add(e.id);
+      const x = e.competitions[0]; const h = x.competitors.find(y => y.homeAway === 'home'), f = x.competitors.find(y => y.homeAway === 'away');
+      jogos.push({ d: e.date, c: h.team.id, f: f.team.id, gc: Number(h.score), gf: Number(f.score), t: e.season.year, nc: h.team.shortDisplayName || h.team.displayName, nf: f.team.shortDisplayName || f.team.displayName });
+    }
+    jogos.sort((a, b) => a.d.localeCompare(b.d));
+    if (jogos.length) armazenar.gravar(k, { em: Date.now(), jogos });
+    return jogos;
+  }
+
+  return { carregar, historico, armazenar };
 })();

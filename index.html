@@ -37,10 +37,30 @@
     <span class="selo-sim">SIMULAÇÃO ATIVA</span>
     <span id="simContagem" class="sutil"></span>
     <div class="acoes">
-      <button class="btn" id="btnSortear" title="Preenche os jogos ainda sem placar com resultados prováveis">🎲 Sortear jogos restantes</button>
+      <button class="btn" id="btnSortear" title="Preenche os jogos sem placar com resultados sorteados (com a sorte do futebol)">🎲 Sortear (aleatório)</button>
+      <button class="btn destaque-btn" id="btnPrever" title="Preenche os jogos sem placar com o resultado mais provável pelo algoritmo">🧮 Prever pelo algoritmo</button>
       <button class="btn" id="btnChances" title="Simula o restante do campeonato milhares de vezes">📊 Calcular chances</button>
       <button class="btn perigo" id="btnLimpar">Limpar simulação</button>
     </div>
+    <details class="como">
+      <summary>ℹ️ Como o algoritmo funciona</summary>
+      <p>Para cada jogo, calcula os <b>gols esperados</b> de cada time:</p>
+      <ul>
+        <li><b>Mandante:</b> média de gols dos mandantes na liga × ataque do time <b>em casa</b> × defesa do adversário <b>fora</b>.</li>
+        <li><b>Visitante:</b> média de gols dos visitantes × ataque do time <b>fora</b> × defesa do adversário <b>em casa</b>.</li>
+        <li><b>Base:</b> a temporada atual e as 2 anteriores. Jogos recentes pesam mais: um jogo de 4 meses atrás vale metade de um desta semana.</li>
+        <li><b>Confronto direto:</b> nos últimos 6 jogos entre os dois (o mesmo mando pesa o dobro), compara os gols reais com os esperados e faz um ajuste moderado. Um ajuste forte piorou as previsões nos testes, porque poucos jogos enganam.</li>
+        <li><b>Começo de temporada:</b> com poucos jogos, cada time é puxado para a média da liga, para não exagerar em poucos resultados.</li>
+      </ul>
+      <p>Com os gols esperados, a distribuição de Poisson dá as chances de vitória, empate e derrota.</p>
+      <ul>
+        <li><b>🧮 Prever:</b> escolhe o resultado mais provável e, dentro dele, o placar mais provável. Quando vitória e derrota têm chances parecidas, prevê empate; sem essa regra, quase nunca daria empate.</li>
+        <li><b>🎲 Sortear:</b> sorteia o placar com essas mesmas chances, então zebras podem acontecer.</li>
+        <li><b>📊 Chances:</b> repete o sorteio 3.000 vezes.</li>
+      </ul>
+      <p>Abra um jogo na lista para ver a previsão e o confronto direto.</p>
+      <p><b>Teste:</b> prevendo 1.674 jogos já disputados de 2025 (Brasil, Inglaterra, Espanha, Itália e Alemanha), usando só os jogos anteriores a cada um, acertou o resultado em cerca de 47%. Chutar ao acaso dá 33%; apostar sempre no mandante, 45%.</p>
+    </details>
   </section>
 
   <nav class="abas" id="abas">
@@ -71,6 +91,11 @@
     <section id="aba-artilharia" class="painel"></section>
     <section id="aba-destaques" class="painel"></section>
   </main>
+
+  <dialog id="modalPrev" class="modal" aria-labelledby="modalTitulo">
+    <form method="dialog" class="modal-topo"><h2 id="modalTitulo">Previsão</h2><button class="btn icone fantasma" aria-label="Fechar">✕</button></form>
+    <div id="modalCorpo"></div>
+  </dialog>
 
   <footer class="rodape">
     Dados: API pública da ESPN (não oficial), buscados direto pelo navegador e guardados em cache por 30 min. Simulações ficam salvas só neste navegador.

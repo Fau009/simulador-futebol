@@ -129,35 +129,105 @@ const Calculo = (() => {
   // ---------- chances (Monte Carlo com gols de Poisson) ----------
   function poisson(l) { const L = Math.exp(-l); let k = 0, p = 1; do { k++; p *= Math.random(); } while (p > L); return k - 1; }
 
-  // força de ataque/defesa por time a partir dos jogos oficiais, puxada para a média no começo da temporada
-  function forcas(jogos) {
-    const fim = jogos.filter(j => j.st === 'fim');
-    const s = {}; let gols = 0;
-    for (const j of fim) {
-      (s[j.c] ||= { gp: 0, gc: 0, n: 0 }); (s[j.f] ||= { gp: 0, gc: 0, n: 0 });
-      s[j.c].gp += j.gc; s[j.c].gc += j.gf; s[j.c].n++; s[j.f].gp += j.gf; s[j.f].gc += j.gc; s[j.f].n++;
-      gols += j.gc + j.gf;
+  // Modelo de gols esperados (parâmetros escolhidos por teste retroativo em 1.674 jogos de 2025: BR, ING, ESP, ITA, ALE):
+  // - usa a temporada atual e as 2 anteriores; jogos recentes pesam mais (meia-vida de 120 dias);
+  // - separa desempenho em casa e fora (gols marcados e sofridos em cada situação) e compara com a média da liga;
+  // - com poucos jogos, puxa para a média (equivale a K jogos "médios" somados a cada time);
+  // - confronto direto: nos últimos 6 jogos entre os dois, compara gols reais com os esperados e ajusta
+  //   de forma moderada (o mesmo mando pesa o dobro). Peso forte piorou as previsões no teste.
+  const MEIA_VIDA = 120, K = 5, H2H_JOGOS = 6, H2H_K = 6, H2H_OUTRO_MANDO = 0.5;
+  function modelo(jogos, hist = []) {
+    const atuais = jogos.filter(j => j.st === 'fim');
+    const base = [...hist, ...atuais].sort((a, b) => a.d.localeCompare(b.d));
+    const agora = Math.max(Date.now(), atuais.length ? Date.parse(atuais.at(-1).d) : 0);
+    let gC = 0, gF = 0, pT = 0;
+    const s = {}; const T = id => (s[id] ||= { casa: { gp: 0, gc: 0, n: 0 }, fora: { gp: 0, gc: 0, n: 0 } });
+    const confrontos = new Map(); const chave = (a, b) => a < b ? a + '|' + b : b + '|' + a;
+    for (const j of base) {
+      const k = chave(j.c, j.f); if (!confrontos.has(k)) confrontos.set(k, []); confrontos.get(k).push(j);
+      const w = Math.pow(0.5, (agora - Date.parse(j.d)) / 864e5 / MEIA_VIDA); if (w < 0.005) continue;
+      gC += j.gc * w; gF += j.gf * w; pT += w;
+      const c = T(j.c).casa, f = T(j.f).fora;
+      c.gp += j.gc * w; c.gc += j.gf * w; c.n += w;
+      f.gp += j.gf * w; f.gc += j.gc * w; f.n += w;
     }
-    const media = fim.length ? gols / fim.length / 2 : 1.3; const K = 4;
-    const f = {};
-    for (const id in s) f[id] = { at: (s[id].gp + K * media) / (s[id].n + K) / media, df: (s[id].gc + K * media) / (s[id].n + K) / media };
-    return { f, media };
+    const mCasa = pT ? gC / pT : 1.45, mFora = pT ? gF / pT : 1.15; // gols por jogo de mandantes e visitantes na liga
+    const t = {};
+    for (const id in s) {
+      const { casa, fora } = s[id];
+      t[id] = {
+        atCasa: (casa.gp + K * mCasa) / (casa.n + K) / mCasa, dfCasa: (casa.gc + K * mFora) / (casa.n + K) / mFora,
+        atFora: (fora.gp + K * mFora) / (fora.n + K) / mFora, dfFora: (fora.gc + K * mCasa) / (fora.n + K) / mCasa,
+        casa, fora // somas ponderadas (para a explicação)
+      };
+    }
+    const neutro = { atCasa: 1, dfCasa: 1, atFora: 1, dfFora: 1 };
+    // gols esperados sem o confronto direto: média da liga naquela condição × ataque de quem joga × defesa do adversário
+    const baseLambdas = (c, f) => { const a = t[c] || neutro, b = t[f] || neutro; return [mCasa * a.atCasa * b.dfFora, mFora * b.atFora * a.dfCasa]; };
+    const confronto = (c, f) => (confrontos.get(chave(c, f)) || []).slice(-H2H_JOGOS);
+    function fatorH2H(c, f) {
+      let realC = 0, espC = 0, realF = 0, espF = 0, n = 0;
+      for (const j of confronto(c, f)) {
+        const mesmo = j.c === c, w = mesmo ? 1 : H2H_OUTRO_MANDO;
+        const [lc, lf] = mesmo ? baseLambdas(c, f) : baseLambdas(f, c);
+        if (mesmo) { realC += j.gc * w; espC += lc * w; realF += j.gf * w; espF += lf * w; }
+        else { realC += j.gf * w; espC += lf * w; realF += j.gc * w; espF += lc * w; }
+        n += w;
+      }
+      if (!n) return [1, 1];
+      return [(realC + H2H_K * espC / n) / (espC + H2H_K * espC / n), (realF + H2H_K * espF / n) / (espF + H2H_K * espF / n)];
+    }
+    return {
+      mCasa, mFora, jogos: atuais.length, historico: hist.length, confronto,
+      lambdas(j) {
+        const [lc, lf] = baseLambdas(j.c, j.f), [fc, ff] = fatorH2H(j.c, j.f);
+        return [Math.min(5, Math.max(0.15, lc * fc)), Math.min(5, Math.max(0.15, lf * ff))];
+      },
+      semConfronto(j) { return baseLambdas(j.c, j.f); },
+      // números usados em cada etapa, para mostrar o cálculo
+      explicar(j) {
+        const a = t[j.c] || neutro, b = t[j.f] || neutro;
+        const [lc0, lf0] = baseLambdas(j.c, j.f), [fc, ff] = fatorH2H(j.c, j.f);
+        return { mCasa, mFora, K, meiaVida: MEIA_VIDA, casa: a, fora: b, lc0, lf0, fc, ff, confronto: confronto(j.c, j.f) };
+      }
+    };
   }
-  function sortearPlacar(j, fz) {
-    const a = fz.f[j.c] || { at: 1, df: 1 }, b = fz.f[j.f] || { at: 1, df: 1 };
-    const lc = Math.min(4, Math.max(0.2, fz.media * a.at * b.df * 1.12)), lf = Math.min(4, Math.max(0.2, fz.media * b.at * a.df * 0.9));
-    return [poisson(lc), poisson(lf)];
+  function sortearPlacar(j, m) { const [lc, lf] = m.lambdas(j); return [poisson(lc), poisson(lf)]; }
+
+  // Previsão sem sorte: chances de vitória/empate/derrota pela distribuição de Poisson.
+  // Jogo equilibrado (vitória e derrota com menos de 12 pontos de diferença) vira empate; senão, o resultado
+  // mais provável. Dentro do resultado, o placar mais provável. Sem a regra do empate quase nunca se prevê
+  // empate (e a tabela fica irreal); com ela a distribuição fica próxima da real.
+  const fat = [1, 1, 2, 6, 24, 120, 720, 5040, 40320];
+  const pPois = (k, l) => Math.exp(-l) * Math.pow(l, k) / fat[k];
+  const EQUILIBRIO = 0.12;
+  function prever(j, m) {
+    const [lc, lf] = m.lambdas(j); const N = 8;
+    let pV = 0, pE = 0, pD = 0; const melhor = { V: [0, null], E: [0, null], D: [0, null] };
+    for (let a = 0; a <= N; a++) for (let b = 0; b <= N; b++) {
+      const p = pPois(a, lc) * pPois(b, lf); const r = a > b ? 'V' : a === b ? 'E' : 'D';
+      if (r === 'V') pV += p; else if (r === 'E') pE += p; else pD += p;
+      if (p > melhor[r][0]) melhor[r] = [p, [a, b]];
+    }
+    const tot = pV + pE + pD; pV /= tot; pE /= tot; pD /= tot;
+    const r = Math.abs(pV - pD) < EQUILIBRIO ? 'E' : pV >= pE && pV >= pD ? 'V' : pD >= pE ? 'D' : 'E';
+    // placares mais prováveis (para a explicação)
+    const top = [];
+    for (let a = 0; a <= 5; a++) for (let b = 0; b <= 5; b++) top.push([a, b, pPois(a, lc) * pPois(b, lf) / tot]);
+    top.sort((x, y) => y[2] - x[2]);
+    return { placar: melhor[r][1], pV, pE, pD, lc, lf, resultado: r, equilibrado: Math.abs(pV - pD) < EQUILIBRIO, equilibrio: EQUILIBRIO, top: top.slice(0, 6) };
   }
 
-  function chances(grupo, jogos, sim, criterios, zonas, n = 3000) {
-    const fz = forcas(jogos);
+  function chances(grupo, jogos, sim, criterios, zonas, n = 3000, m = null) {
+    const fz = m || modelo(jogos);
     const ids = grupo.linhas.map(l => l.id);
     const pendentes = jogos.filter(j => j.st !== 'fim' && j.st !== 'cancelado' && !sim[j.id] && ids.includes(j.c) && ids.includes(j.f));
     const cont = {}; for (const id of ids) cont[id] = { pos: new Array(ids.length).fill(0) };
     const base = tabela(grupo, jogos, sim, criterios, {});
+    const lambdas = pendentes.map(j => fz.lambdas(j)); // calculados uma vez; só o sorteio muda a cada rodada
     for (let r = 0; r < n; r++) {
       const ls = base.map(l => ({ ...l })); const por = new Map(ls.map(l => [l.id, l]));
-      for (const j of pendentes) { const [a, b] = sortearPlacar(j, fz); somar(por.get(j.c), a, b); somar(por.get(j.f), b, a); }
+      for (let i = 0; i < pendentes.length; i++) { const j = pendentes[i], [lc, lf] = lambdas[i]; const a = poisson(lc), b = poisson(lf); somar(por.get(j.c), a, b); somar(por.get(j.f), b, a); }
       ordenar(ls, criterios);
       ls.forEach((l, i) => cont[l.id].pos[i]++);
     }
@@ -169,5 +239,5 @@ const Calculo = (() => {
     return { res, pendentes: pendentes.length, n };
   }
 
-  return { placar, tabela, forma, artilharia, destaques, chaves, forcas, sortearPlacar, chances };
+  return { placar, tabela, forma, artilharia, destaques, chaves, modelo, sortearPlacar, prever, chances };
 })();

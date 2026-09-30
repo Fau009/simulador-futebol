@@ -44,6 +44,8 @@
       const d = await Dados.carregar(S.comp, forcar);
       if (S.comp.id !== id && acharCompeticao(id)) return;
       S.dados = { ...d, compId: S.comp.id };
+      S.hist = []; S.modelo = Calculo.modelo(S.dados.jogos);
+      carregarHistorico();
       S.sim = A.ler(chaveSim()) || {};
       const ids = new Set(S.dados.jogos.map(j => j.id)); // descarta simulações de jogos que não existem mais
       for (const k of Object.keys(S.sim)) if (!ids.has(k)) delete S.sim[k];
@@ -55,6 +57,17 @@
       $('#listaJogos').innerHTML = '';
     }
     btn.disabled = false;
+  }
+
+  // histórico das temporadas anteriores chega depois (é pesado); quando chega, o algoritmo passa a usá-lo
+  async function carregarHistorico() {
+    const comp = S.comp, temp = S.dados.temporada;
+    try {
+      const h = await Dados.historico(comp, temp);
+      if (S.comp !== comp || S.dados.temporada !== temp) return;
+      S.hist = h; S.modelo = Calculo.modelo(S.dados.jogos, h); S.chances = null;
+      if (S.aba === 'jogos' && S.abertos.size) renderJogos();
+    } catch { /* sem histórico: segue só com a temporada atual */ }
   }
 
   function renderTudo() {
@@ -91,26 +104,32 @@
     salvarSim(); return true;
   }
 
-  function sortear() {
-    const fz = Calculo.forcas(S.dados.jogos); let n = 0;
+  const pendente = j => j.st !== 'fim' && j.st !== 'cancelado' && !j.indef && !S.sim[j.id];
+  // preenche os jogos sem placar; o 4º campo guarda a origem: 'r' sorteado, 'a' algoritmo (digitado não tem)
+  function preencher(modo) {
+    const m = S.modelo; let n = 0;
     for (const j of S.dados.jogos) {
-      if (j.st === 'fim' || j.st === 'cancelado' || j.indef || S.sim[j.id]) continue;
-      S.sim[j.id] = [...Calculo.sortearPlacar(j, fz), null]; n++;
+      if (!pendente(j)) continue;
+      S.sim[j.id] = modo === 'a' ? [...Calculo.prever(j, m).placar, null, 'a'] : [...Calculo.sortearPlacar(j, m), null, 'r']; n++;
     }
     if (S.comp.tipo === 'copa') { // desempata confrontos sorteados nos pênaltis
       for (const f of Calculo.chaves(S.dados.jogos, S.sim)) for (const c of f.confrontos) {
-        if (c.empatado && c.algumSim) { const u = c.jogos.at(-1); if (S.sim[u.id]) S.sim[u.id][2] = Math.random() < .5 ? 'c' : 'f'; }
+        if (c.empatado && c.algumSim) {
+          const u = c.jogos.at(-1); if (!S.sim[u.id]) continue;
+          const [lc, lf] = m.lambdas(u); // pênaltis: no algoritmo vence o mais forte; no sorteio, chance proporcional à força
+          S.sim[u.id][2] = modo === 'a' ? (lc >= lf ? 'c' : 'f') : (Math.random() < lc / (lc + lf) ? 'c' : 'f');
+        }
       }
     }
     salvarSim(); renderTudo();
-    aviso(n ? `${n} jogo(s) sorteados com base no desempenho da temporada` : 'Não há jogos pendentes para sortear');
+    aviso(!n ? 'Não há jogos sem placar para preencher' : modo === 'a' ? `${n} jogo(s) previstos pelo algoritmo (casa/fora, jogos recentes com mais peso)` : `${n} jogo(s) sorteados com as chances do algoritmo`);
   }
 
   function calcularChances() {
     const g = S.dados.tabela[0]; if (!g) return;
     const btn = $('#btnChances'); btn.disabled = true; btn.textContent = '📊 Calculando…';
     setTimeout(() => {
-      S.chances = Calculo.chances(g, S.dados.jogos, S.sim, S.comp.desempate, S.comp.zonas, 3000);
+      S.chances = Calculo.chances(g, S.dados.jogos, S.sim, S.comp.desempate, S.comp.zonas, 3000, S.modelo);
       btn.disabled = false; btn.textContent = '📊 Calcular chances';
       mostrarAba('tabela'); renderTabela();
       aviso(`Chances calculadas com ${S.chances.n.toLocaleString('pt-BR')} simulações de ${S.chances.pendentes} jogo(s) restantes`);
@@ -187,12 +206,13 @@
   }
   function htmlStatus(j) {
     const s = S.sim[j.id];
-    if (s) return `<span class="tag-sim">simulado</span>${j.st === 'fim' ? `<br>oficial ${j.gc}×${j.gf}` : ''} <button class="desfazer" data-desfazer="${j.id}">desfazer</button>`;
+    if (s) return `<span class="tag-sim">${s[3] === 'a' ? 'algoritmo' : s[3] === 'r' ? 'sorteado' : 'simulado'}</span>${j.st === 'fim' ? `<br>oficial ${j.gc}×${j.gf}` : ''} <button class="desfazer" data-desfazer="${j.id}">desfazer</button>`;
     if (j.st === 'vivo') return `<span class="vivo">● ao vivo ${esc(j.relogio || '')}</span>`;
     if (j.st === 'adiado') return 'adiado';
     if (j.st === 'cancelado') return 'cancelado';
     if (j.st === 'fim') return j.pc != null ? `pên. ${j.pc}×${j.pf}` : 'encerrado';
-    return j.fase && S.comp.tipo === 'copa' ? esc(j.fase) : '';
+    const fase = j.fase && S.comp.tipo === 'copa' ? esc(j.fase) + '<br>' : '';
+    return j.indef ? fase : fase + '<span class="dica-prev" title="Clique para ver a previsão e o cálculo">🧮 previsão</span>';
   }
   function htmlJogo(j) {
     const p = Calculo.placar(j, S.sim && S.simAtivo ? S.sim : {});
@@ -201,13 +221,113 @@
     const det = aberto ? `<div class="detalhe-jogo">
         <div class="lado-casa">${j.gols.filter(g => g[0] === j.c).map(g => `⚽ ${esc(g[1])} ${esc(g[2])}${g[3] === 'p' ? ' (pên.)' : g[3] === 'c' ? ' (contra)' : ''}`).join('<br>') || ''}${j.cartoes.filter(c => c[0] === j.c).map(c => `<br>${c[2] === 'v' ? '🟥' : '🟨'} ${esc(c[1])}`).join('')}</div>
         <div>${j.gols.filter(g => g[0] === j.f).map(g => `⚽ ${esc(g[1])} ${esc(g[2])}${g[3] === 'p' ? ' (pên.)' : g[3] === 'c' ? ' (contra)' : ''}`).join('<br>') || ''}${j.cartoes.filter(c => c[0] === j.f).map(c => `<br>${c[2] === 'v' ? '🟥' : '🟨'} ${esc(c[1])}`).join('')}</div>
-        <div class="local">${esc(j.local)}${j.nota ? ' · ' + esc(j.nota) : ''}${j.st === 'fim' || j.st === 'vivo' ? '' : ' · ' + hora(j.d)}</div></div>` : '';
+        <div class="local">${esc(j.local)}${j.nota ? ' · ' + esc(j.nota) : ''}${j.st === 'fim' || j.st === 'vivo' ? '' : ' · ' + hora(j.d)}</div>${htmlPrevisao(j)}</div>` : '';
     return `<div class="jogo${S.sim[j.id] && S.simAtivo ? ' simulado' : ''}" data-jogo="${j.id}">
       <span class="hora">${j.st === 'fim' ? new Date(j.d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : hora(j.d)}</span>
       <div class="casa${vc ? ' vence' : ''}"><span>${esc(mobile() ? time(j.c).curto : time(j.c).nome)}</span>${escudo(j.c)}</div>
       ${htmlPlacar(j)}
       <div class="fora${vf ? ' vence' : ''}">${escudo(j.f)}<span>${esc(mobile() ? time(j.f).curto : time(j.f).nome)}</span></div>
       <div class="status">${htmlStatus(j)}</div>${det}</div>`;
+  }
+
+  // previsão do algoritmo para jogos ainda não disputados
+  function htmlPrevisao(j) {
+    if (j.st === 'fim' || j.st === 'cancelado' || j.indef || !S.modelo?.jogos) return '';
+    const p = Calculo.prever(j, S.modelo);
+    const f = x => (x * 100).toFixed(0) + '%', g = x => x.toFixed(2).replace('.', ',');
+    return `<div class="previsao"><b>🧮 Previsão: ${p.placar[0]} × ${p.placar[1]}</b> · gols esperados ${g(p.lc)} × ${g(p.lf)}
+      <div class="prob"><i style="width:${p.pV * 100}%" title="${esc(time(j.c).nome)} vence">${f(p.pV)}</i><i style="width:${p.pE * 100}%" title="Empate">${f(p.pE)}</i><i style="width:${p.pD * 100}%" title="${esc(time(j.f).nome)} vence">${f(p.pD)}</i></div>
+      <small>${esc(time(j.c).curto)} vence · empate · ${esc(time(j.f).curto)} vence</small>
+      ${htmlConfronto(j)}
+      <small class="base">Base: ${S.modelo.jogos} jogos desta temporada${S.modelo.historico ? ` + ${S.modelo.historico} das 2 anteriores` : S.comp.tipo === 'liga' ? ' (carregando temporadas anteriores…)' : ''}</small></div>`;
+  }
+
+  // ---------- janela "por que este resultado?" ----------
+  const n2 = x => x.toFixed(2).replace('.', ','), pc = x => (x * 100).toFixed(0) + '%';
+  // Velocímetro: arco da esquerda (mandante vence) à direita (visitante vence), empate no meio.
+  // O ponteiro aponta para o favorito: 0,5 + (visitante − mandante) / 2 do caminho.
+  function velocimetro(p, casa, fora) {
+    const cx = 150, cy = 140, r = 105, lg = 26;
+    const pt = (t, rr = r) => { const a = Math.PI * (1 - t); return [cx + rr * Math.cos(a), cy - rr * Math.sin(a)]; };
+    const arco = (t0, t1, cls) => {
+      if (t1 - t0 < 0.002) return '';
+      const [x0, y0] = pt(t0), [x1, y1] = pt(t1);
+      return `<path class="${cls}" d="M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}" stroke-width="${lg}" fill="none"/>`;
+    };
+    const segs = [[0, p.pV, 'g-casa'], [p.pV, p.pV + p.pE, 'g-empate'], [p.pV + p.pE, 1, 'g-fora']];
+    const rotulo = ([t0, t1], txt) => { if (t1 - t0 < 0.06) return ''; const [x, y] = pt((t0 + t1) / 2); return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" class="g-num">${txt}</text>`; };
+    const t = 0.5 + (p.pD - p.pV) / 2, [nx, ny] = pt(t, r - 22);
+    return `<svg class="velocimetro" viewBox="0 0 300 165" role="img" aria-label="${esc(casa)} vence ${pc(p.pV)}, empate ${pc(p.pE)}, ${esc(fora)} vence ${pc(p.pD)}">
+      ${segs.map(([a, b, c]) => arco(a, b, c)).join('')}
+      ${rotulo(segs[0], pc(p.pV))}${rotulo(segs[1], pc(p.pE))}${rotulo(segs[2], pc(p.pD))}
+      <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" class="g-ponteiro"/>
+      <circle cx="${cx}" cy="${cy}" r="8" class="g-eixo"/>
+    </svg>
+    <div class="g-legenda"><span class="c">${esc(casa)} vence<b>${pc(p.pV)}</b></span><span class="e">Empate<b>${pc(p.pE)}</b></span><span class="f">${esc(fora)} vence<b>${pc(p.pD)}</b></span></div>`;
+  }
+
+  function abrirPrevisao(j) {
+    const m = S.modelo, p = Calculo.prever(j, m), x = m.explicar(j);
+    const A = time(j.c), B = time(j.f);
+    const nomeR = { V: `vitória do ${esc(A.curto)}`, E: 'empate', D: `vitória do ${esc(B.curto)}` };
+    const lin = (rot, gols, jogos, media) => `${rot}: <b>${n2(gols / Math.max(jogos, 1e-9))}</b> por jogo (${n2(gols)} gols em ${n2(jogos)} jogos ponderados; média da liga ${n2(media)})`;
+    const ca = x.casa.casa || { gp: 0, gc: 0, n: 0 }, fo = x.fora.fora || { gp: 0, gc: 0, n: 0 };
+    $('#modalTitulo').innerHTML = `${escudo(j.c)} ${esc(A.nome)} <span class="sutil">×</span> ${esc(B.nome)} ${escudo(j.f)}`;
+    $('#modalCorpo').innerHTML = `
+      <p class="sutil">${diaLongo(j.d)} · ${hora(j.d)}${j.local ? ' · ' + esc(j.local) : ''}</p>
+      <div class="previsao-topo">
+        ${velocimetro(p, A.curto, B.curto)}
+        <div class="resposta"><span>Placar previsto</span><b>${p.placar[0]} × ${p.placar[1]}</b><span>${nomeR[p.resultado]}</span></div>
+      </div>
+
+      <ol class="passos">
+        <li><h4>Média da liga</h4>
+          <p>Mandantes fazem <b>${n2(x.mCasa)}</b> gols por jogo e visitantes <b>${n2(x.mFora)}</b>, considerando esta temporada e as 2 anteriores${m.historico ? '' : ' (histórico ainda carregando: só esta temporada)'}. Jogos recentes pesam mais (meia-vida de ${x.meiaVida} dias).</p></li>
+        <li><h4>${esc(A.curto)} jogando em casa</h4>
+          <p>${lin('Marca', ca.gp, ca.n, x.mCasa)} → ataque <b>${n2(x.casa.atCasa)}×</b> a média.<br>
+          ${lin('Sofre', ca.gc, ca.n, x.mFora)} → defesa <b>${n2(x.casa.dfCasa)}×</b> (abaixo de 1 é melhor).</p></li>
+        <li><h4>${esc(B.curto)} jogando fora</h4>
+          <p>${lin('Marca', fo.gp, fo.n, x.mFora)} → ataque <b>${n2(x.fora.atFora)}×</b> a média.<br>
+          ${lin('Sofre', fo.gc, fo.n, x.mCasa)} → defesa <b>${n2(x.fora.dfFora)}×</b>.</p>
+          <p class="sutil">Com poucos jogos, cada time recebe ${x.K} jogos "na média da liga" somados, para não exagerar em poucos resultados.</p></li>
+        <li><h4>Gols esperados</h4>
+          <p class="conta">${esc(A.curto)}: ${n2(x.mCasa)} × ${n2(x.casa.atCasa)} (ataque) × ${n2(x.fora.dfFora)} (defesa do ${esc(B.curto)}) = <b>${n2(x.lc0)}</b></p>
+          <p class="conta">${esc(B.curto)}: ${n2(x.mFora)} × ${n2(x.fora.atFora)} (ataque) × ${n2(x.casa.dfCasa)} (defesa do ${esc(A.curto)}) = <b>${n2(x.lf0)}</b></p></li>
+        <li><h4>Confronto direto</h4>${htmlConfronto(j)}
+          ${x.confronto.length ? `<p class="conta">Fator aplicado: ${esc(A.curto)} × ${n2(x.fc)} → <b>${n2(p.lc)}</b> · ${esc(B.curto)} × ${n2(x.ff)} → <b>${n2(p.lf)}</b></p>` : ''}</li>
+        <li><h4>Chances de cada placar (distribuição de Poisson)</h4>
+          <table class="top-placares"><tr>${p.top.map(([a, b, q]) => `<td><b>${a}×${b}</b><br>${(q * 100).toFixed(1)}%</td>`).join('')}</tr></table>
+          <p>Somando todos os placares: ${esc(A.curto)} vence ${pc(p.pV)}, empate ${pc(p.pE)}, ${esc(B.curto)} vence ${pc(p.pD)}.</p></li>
+        <li><h4>Decisão</h4>
+          <p>${p.equilibrado
+            ? `Vitória (${pc(p.pV)}) e derrota (${pc(p.pD)}) estão a menos de ${pc(p.equilibrio)} de distância: o jogo é equilibrado, então a previsão é <b>empate</b>, no placar de empate mais provável (<b>${p.placar[0]}×${p.placar[1]}</b>).`
+            : `O resultado mais provável é <b>${nomeR[p.resultado]}</b>. Dentro dele, o placar mais provável é <b>${p.placar[0]}×${p.placar[1]}</b>.`}</p>
+          <p class="sutil">No teste com 1.674 jogos de 2025, este método acertou o resultado em cerca de 47% das vezes. Futebol tem muito acaso.</p></li>
+      </ol>
+      ${S.simAtivo ? `<div class="modal-acoes"><button class="btn destaque-btn" id="usarPrevisao">Usar ${p.placar[0]} × ${p.placar[1]} na simulação</button></div>` : ''}`;
+    const b = $('#usarPrevisao');
+    if (b) b.onclick = () => {
+      S.sim[j.id] = [p.placar[0], p.placar[1], null, 'a']; salvarSim(); $('#modalPrev').close(); renderJogos(); renderSimBarra();
+    };
+    $('#modalPrev').showModal();
+  }
+  $('#modalPrev').addEventListener('click', e => { if (e.target.id === 'modalPrev') e.target.close(); }); // clique fora fecha
+
+  // últimos confrontos entre os dois times (temporada atual + 2 anteriores)
+  function htmlConfronto(j) {
+    const lista = S.modelo.confronto(j.c, j.f);
+    if (!lista.length) return '<div class="h2h"><b>Confronto direto:</b> sem jogos entre os dois nas últimas temporadas</div>';
+    let v = 0, e = 0, d = 0, vc = 0, ec = 0, dc = 0, nc = 0;
+    for (const x of lista) {
+      const gm = x.c === j.c ? x.gc : x.gf, gs = x.c === j.c ? x.gf : x.gc;
+      if (gm > gs) v++; else if (gm === gs) e++; else d++;
+      if (x.c === j.c) { nc++; if (x.gc > x.gf) vc++; else if (x.gc === x.gf) ec++; else dc++; }
+    }
+    const [lc0, lf0] = S.modelo.semConfronto(j), [lc, lf] = S.modelo.lambdas(j);
+    const efeito = Math.abs(lc - lc0) + Math.abs(lf - lf0) < 0.05 ? 'quase sem efeito na previsão' : `ajustou os gols esperados de ${lc0.toFixed(2).replace('.', ',')} × ${lf0.toFixed(2).replace('.', ',')} para ${lc.toFixed(2).replace('.', ',')} × ${lf.toFixed(2).replace('.', ',')}`;
+    const nome = x => esc(x.nc || time(x.c).curto), nomeF = x => esc(x.nf || time(x.f).curto);
+    return `<div class="h2h"><b>Confronto direto (últimos ${lista.length}):</b> ${esc(time(j.c).curto)} ${v}V ${e}E ${d}D${nc ? ` · com mando dele: ${vc}V ${ec}E ${dc}D` : ''} · ${efeito}
+      <ul>${lista.slice().reverse().map(x => `<li>${new Date(x.d).toLocaleDateString('pt-BR')} · ${nome(x)} <b>${x.gc} × ${x.gf}</b> ${nomeF(x)}</li>`).join('')}</ul></div>`;
   }
 
   function jogosFiltrados() {
@@ -327,7 +447,8 @@
     renderSimBarra(); renderTabela(); renderJogos();
     if (S.simAtivo) { S.filtro = 'proximos'; document.querySelectorAll('#filtroJogos .chip').forEach(c => c.classList.toggle('ativo', c.dataset.f === 'proximos')); mostrarAba(S.comp.tipo === 'copa' ? 'tabela' : 'jogos'); }
   };
-  $('#btnSortear').onclick = sortear;
+  $('#btnSortear').onclick = () => preencher('r');
+  $('#btnPrever').onclick = () => preencher('a');
   $('#btnChances').onclick = calcularChances;
   $('#btnLimpar').onclick = () => {
     if (!simulados()) { aviso('Não há nada simulado'); return; }
@@ -366,8 +487,10 @@
     if (d) { delete S.sim[d.dataset.desfazer]; salvarSim(); renderJogos(); renderSimBarra(); return; } // renderJogos também atualiza a tabela ao lado
     if (e.target.closest('input')) return;
     const row = e.target.closest('.jogo'); if (!row) return;
-    const id = row.dataset.jogo; S.abertos.has(id) ? S.abertos.delete(id) : S.abertos.add(id);
-    const j = S.dados.jogos.find(x => x.id === id); row.outerHTML = htmlJogo(j);
+    const id = row.dataset.jogo; const j = S.dados.jogos.find(x => x.id === id);
+    if (j.st !== 'fim' && j.st !== 'vivo' && j.st !== 'cancelado' && !j.indef) { abrirPrevisao(j); return; }
+    S.abertos.has(id) ? S.abertos.delete(id) : S.abertos.add(id);
+    row.outerHTML = htmlJogo(j);
   });
   addEventListener('hashchange', () => { const id = location.hash.slice(1); if (id && id !== S.comp?.id && acharCompeticao(id)) abrir(id); });
   let largura = innerWidth; addEventListener('resize', () => { if ((innerWidth <= 760) !== (largura <= 760) && S.dados) renderJogos(); largura = innerWidth; });
