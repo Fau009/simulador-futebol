@@ -98,18 +98,23 @@ const Dados = (() => {
     const vistos = new Set();
     const jogos = eventos.filter(e => e.season?.year === temporada && !vistos.has(e.id) && vistos.add(e.id))
       .map(e => normalizarJogo(e, times)).sort((a, b) => a.d.localeCompare(b.d));
+    // Jogo adiado e remarcado: a ESPN mantém o evento antigo ("adiado") e cria outro com a nova data.
+    // Descarta o adiado quando existe outro jogo com o mesmo mandante e visitante.
+    const pares = new Map();
+    for (const j of jogos) if (j.st !== 'adiado') pares.set(j.c + '|' + j.f, (pares.get(j.c + '|' + j.f) || 0) + 1);
+    const semDuplicados = jogos.filter(j => j.st !== 'adiado' || !pares.get(j.c + '|' + j.f));
     nomeTemporada = comp.calendario === 'europeu' ? `${temporada}-${String(temporada + 1).slice(2)}` : String(temporada);
 
     let lideres = null;
     if (comp.tipo === 'liga') {
       try { lideres = normalizarLideres(await json(`${STATS}/${comp.id}/statistics`)); } catch { lideres = null; }
     }
-    return { temporada, nomeTemporada, times, tabela, jogos, lideres };
+    return { temporada, nomeTemporada, times, tabela, jogos: semDuplicados, lideres };
   }
 
   // devolve do cache se ainda válido; forcar=true ignora o cache
   async function carregar(comp, forcar = false) {
-    const k = 'dados:' + comp.id;
+    const k = 'dados-v2:' + comp.id; // v2: sem os jogos adiados duplicados
     const c = armazenar.ler(k);
     if (!forcar && c && Date.now() - c.em < VALIDADE) return { ...c.dados, em: c.em, doCache: true };
     try {

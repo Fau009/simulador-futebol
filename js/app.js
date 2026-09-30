@@ -45,6 +45,8 @@
       if (S.comp.id !== id && acharCompeticao(id)) return;
       S.dados = { ...d, compId: S.comp.id };
       S.sim = A.ler(chaveSim()) || {};
+      const ids = new Set(S.dados.jogos.map(j => j.id)); // descarta simulações de jogos que não existem mais
+      for (const k of Object.keys(S.sim)) if (!ids.has(k)) delete S.sim[k];
       if (d.erro) aviso('Sem conexão com a fonte: mostrando os últimos dados salvos');
       else if (forcar) aviso('Dados atualizados');
       renderTudo();
